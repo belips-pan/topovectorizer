@@ -6,7 +6,7 @@
 
 **TopoVectorizer** is a professional desktop application for converting scanned topographic maps (TIFF/GeoTIFF) into vector formats (DXF, Shapefile, GeoPackage, GeoJSON). It automatically extracts contour lines, assigns elevations via OCR, and georeferences to the Greek coordinate system (EGSA87).
 
-![TopoVectorizer Screenshot](screenshot.png)
+![TopoVectorizer Screenshot](media/contours_extracted.png)
 
 ## ✨ Features
 
@@ -47,8 +47,12 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/topovectorizer.git
-cd topovectorizer
+git clone https://github.com/belips-pan/topovectorizer.git
+cd topovectorizer/src
 
 # Install requirements
 pip install -r requirements.txt
+
+# Run the programm
+python main.py
+
