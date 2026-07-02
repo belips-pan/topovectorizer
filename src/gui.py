@@ -1,5 +1,5 @@
 """
-PySide6 GUI for TopoVectorizer
+PySide6 GUI for TopoVectorizer - Enhanced Version
 """
 import sys
 import os
@@ -49,6 +49,7 @@ class TopoVectorizerGUI(QMainWindow):
         self.simplified_contours = None
         self.elevations = None
         self.georeferenced = None
+        self.current_file = None
         
         self.setWindowTitle("TopoVectorizer - Contour Vectorization")
         self.setGeometry(100, 100, 1400, 800)
@@ -61,7 +62,7 @@ class TopoVectorizerGUI(QMainWindow):
         
         # Left side - Controls
         controls_widget = QWidget()
-        controls_widget.setFixedWidth(350)
+        controls_widget.setFixedWidth(380)
         controls_layout = QVBoxLayout(controls_widget)
         
         # File operations
@@ -72,6 +73,14 @@ class TopoVectorizerGUI(QMainWindow):
         self.load_btn.clicked.connect(self.load_image)
         file_layout.addWidget(self.load_btn)
         
+        # ΝΕΟ: Clear Project button
+        self.clear_btn = QPushButton("🗑️ Clear Project")
+        self.clear_btn.clicked.connect(self.clear_project)
+        self.clear_btn.setStyleSheet("background-color: #ff6b6b; color: white;")
+        file_layout.addWidget(self.clear_btn)
+        
+        file_layout.addWidget(QLabel(""))
+        
         self.save_btn = QPushButton("Export DXF")
         self.save_btn.clicked.connect(self.export_dxf)
         file_layout.addWidget(self.save_btn)
@@ -79,7 +88,7 @@ class TopoVectorizerGUI(QMainWindow):
         file_group.setLayout(file_layout)
         controls_layout.addWidget(file_group)
         
-        # Processing controls - ΟΛΑ ΕΝΕΡΓΑ ΑΠΟ ΤΗΝ ΑΡΧΗ
+        # Processing controls
         process_group = QGroupBox("Processing Steps")
         process_layout = QVBoxLayout()
         
@@ -90,6 +99,12 @@ class TopoVectorizerGUI(QMainWindow):
         self.skeleton_btn = QPushButton("3. Skeletonize")
         self.skeleton_btn.clicked.connect(self.skeletonize_image)
         process_layout.addWidget(self.skeleton_btn)
+        
+        # ΝΕΟ: Skip Skeleton button
+        self.skip_skeleton_btn = QPushButton("⏭️ Skip Skeleton (Direct Contours)")
+        self.skip_skeleton_btn.clicked.connect(self.skip_to_contours)
+        self.skip_skeleton_btn.setStyleSheet("background-color: #ffd93d; color: black;")
+        process_layout.addWidget(self.skip_skeleton_btn)
         
         self.analyze_btn = QPushButton("4. Extract Contours")
         self.analyze_btn.clicked.connect(self.extract_contours)
@@ -151,6 +166,15 @@ class TopoVectorizerGUI(QMainWindow):
         status_group.setLayout(status_layout)
         controls_layout.addWidget(status_group)
         
+        # ΝΕΟ: Exit button
+        exit_layout = QHBoxLayout()
+        exit_layout.addStretch()
+        self.exit_btn = QPushButton("❌ Exit")
+        self.exit_btn.clicked.connect(self.close)
+        self.exit_btn.setStyleSheet("background-color: #dc3545; color: white; font-weight: bold;")
+        exit_layout.addWidget(self.exit_btn)
+        controls_layout.addLayout(exit_layout)
+        
         controls_layout.addStretch()
         
         # Right side - Visualization
@@ -177,18 +201,20 @@ class TopoVectorizerGUI(QMainWindow):
         self.epsilon_spin.valueChanged.connect(self.update_parameters)
         self.confidence_spin.valueChanged.connect(self.update_parameters)
         
-        # ΟΛΑ ΤΑ ΠΛΗΚΤΡΑ ΕΝΕΡΓΑ
+        # Όλα τα πλήκτρα ενεργά
         self.set_all_buttons_enabled(True)
     
     def set_all_buttons_enabled(self, enabled):
         """Enable or disable all processing buttons"""
         self.preprocess_btn.setEnabled(enabled)
         self.skeleton_btn.setEnabled(enabled)
+        self.skip_skeleton_btn.setEnabled(enabled)
         self.analyze_btn.setEnabled(enabled)
         self.simplify_btn.setEnabled(enabled)
         self.ocr_btn.setEnabled(enabled)
         self.georef_btn.setEnabled(enabled)
         self.save_btn.setEnabled(enabled)
+        self.clear_btn.setEnabled(enabled)
     
     def update_parameters(self):
         """Update module parameters from GUI"""
@@ -201,6 +227,59 @@ class TopoVectorizerGUI(QMainWindow):
         self.status_text.append(msg)
         QApplication.processEvents()
     
+    def clear_project(self):
+        """Clear all data and reset the project"""
+        reply = QMessageBox.question(
+            self, 'Clear Project',
+            'Are you sure you want to clear all data?\nThis will reset everything.',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            self.log_message("=" * 50)
+            self.log_message("Clearing project...")
+            
+            # Clear all data
+            self.image = None
+            self.processed_image = None
+            self.skeleton = None
+            self.contours = None
+            self.simplified_contours = None
+            self.elevations = None
+            self.georeferenced = None
+            self.current_file = None
+            
+            # Clear display
+            self.ax.clear()
+            self.ax.set_title("Ready")
+            self.ax.axis('off')
+            self.canvas.draw()
+            
+            # Clear status
+            self.status_text.clear()
+            
+            # Reset modules
+            self.reader = None
+            self.preprocessor = Preprocessor()
+            self.skeletonizer = Skeletonizer()
+            self.graph_analyzer = GraphAnalyzer()
+            self.tracker = ContourTracker()
+            self.simplifier = PolylineSimplifier()
+            self.georeferencer = Georeferencer()
+            self.dxf_exporter = DXFExporter()
+            self.ocr_detector = OCRDetector()
+            
+            # Reset parameters
+            self.threshold_spin.setValue(128)
+            self.epsilon_spin.setValue(1.0)
+            self.confidence_spin.setValue(60)
+            self.method_combo.setCurrentIndex(0)
+            
+            self.log_message("Project cleared successfully!")
+            self.log_message("You can now load a new image.")
+            self.log_message("=" * 50)
+    
     def load_image(self):
         """Load TIFF image"""
         filepath, _ = QFileDialog.getOpenFileName(
@@ -212,6 +291,7 @@ class TopoVectorizerGUI(QMainWindow):
             
         try:
             self.log_message(f"Loading: {filepath}")
+            self.current_file = filepath
             
             self.reader = RasterReader(filepath, max_size=2048)
             self.image = self.reader.read()
@@ -258,7 +338,15 @@ class TopoVectorizerGUI(QMainWindow):
         try:
             self.log_message("Preprocessing image...")
             self.processed_image = self.preprocessor.process(self.image)
-            self.log_message("Preprocessing complete")
+            
+            # Έλεγχος αν η εικόνα είναι μαύρη
+            white_pixels = np.sum(self.processed_image > 0)
+            if white_pixels == 0:
+                self.log_message("⚠️ WARNING: Preprocessing resulted in completely black image!")
+                self.log_message("⚠️ Try skipping preprocessing or adjust threshold.")
+            else:
+                self.log_message(f"Preprocessing complete: {white_pixels} white pixels")
+            
             self.display_image(self.processed_image, "Preprocessed Image")
             
         except Exception as e:
@@ -266,7 +354,6 @@ class TopoVectorizerGUI(QMainWindow):
     
     def skeletonize_image(self):
         """Apply skeletonization"""
-        # Χρησιμοποιούμε την preprocessed ή την αρχική εικόνα
         image_to_use = self.processed_image if self.processed_image is not None else self.image
         
         if image_to_use is None:
@@ -276,16 +363,60 @@ class TopoVectorizerGUI(QMainWindow):
         try:
             self.log_message("Skeletonizing...")
             self.skeleton = self.skeletonizer.skeletonize(image_to_use)
-            self.log_message("Skeletonization complete")
+            
+            if self.skeleton is None or np.sum(self.skeleton > 0) == 0:
+                self.log_message("⚠️ WARNING: Skeleton is empty!")
+                self.log_message("⚠️ Try using 'Skip Skeleton' button instead.")
+            else:
+                self.log_message(f"Skeletonization complete: {np.sum(self.skeleton > 0)} pixels")
+            
             self.display_image(self.skeleton, "Skeleton")
             
         except Exception as e:
             self.log_message(f"Error in skeletonization: {str(e)}")
     
+    def skip_to_contours(self):
+        """Skip skeletonization and go directly to contour extraction"""
+        if self.image is None:
+            self.log_message("Error: No image loaded")
+            return
+        
+        self.log_message("Skipping skeletonization...")
+        self.log_message("Using original/preprocessed image directly for contour extraction")
+        
+        # Χρησιμοποιούμε την preprocessed ή την αρχική εικόνα
+        image_to_use = self.processed_image if self.processed_image is not None else self.image
+        
+        # Κάνουμε threshold αν χρειάζεται
+        if image_to_use.max() > 1:
+            _, image_to_use = cv2.threshold(image_to_use, 128, 255, cv2.THRESH_BINARY)
+        
+        # Αποθηκεύουμε ως skeleton (για να το χρησιμοποιήσει το extract_contours)
+        self.skeleton = image_to_use
+        
+        self.log_message(f"Ready for contour extraction: {np.sum(self.skeleton > 0)} white pixels")
+        self.display_image(self.skeleton, "Ready for Contour Extraction")
+        
+        # Αυτόματα πάμε στο extract contours
+        self.extract_contours()
+    
     def extract_contours(self):
-        """Extract contours from skeleton"""
+        """Extract contours from skeleton or image"""
+        # Αν δεν υπάρχει skeleton, χρησιμοποιούμε την εικόνα
         if self.skeleton is None:
-            self.log_message("Error: No skeleton found. Run Skeletonize first.")
+            image_to_use = self.processed_image if self.processed_image is not None else self.image
+            
+            if image_to_use is None:
+                self.log_message("Error: No image loaded")
+                return
+            
+            self.log_message("No skeleton found, using image directly...")
+            if image_to_use.max() > 1:
+                _, image_to_use = cv2.threshold(image_to_use, 128, 255, cv2.THRESH_BINARY)
+            self.skeleton = image_to_use
+        
+        if self.skeleton is None:
+            self.log_message("Error: No image or skeleton available")
             return
             
         try:
@@ -302,7 +433,12 @@ class TopoVectorizerGUI(QMainWindow):
             self.contours = self.tracker.track_contours(self.skeleton, use_cv2=use_cv2)
             self.contours = self.tracker.merge_contours(self.contours, max_gap=10)
             
-            self.log_message(f"Extracted {len(self.contours)} contours")
+            if len(self.contours) == 0:
+                self.log_message("⚠️ WARNING: No contours found!")
+                self.log_message("⚠️ Try using 'Skip Skeleton' button or different extraction method")
+            else:
+                self.log_message(f"Extracted {len(self.contours)} contours")
+            
             self.display_contours(self.contours)
             
         except Exception as e:
@@ -327,12 +463,15 @@ class TopoVectorizerGUI(QMainWindow):
             self.ax.imshow(self.image, cmap='gray')
         
         # Draw contours
-        for contour in contours:
-            if len(contour) > 1:
-                points = np.array([(x, y) for y, x in contour])
-                self.ax.plot(points[:, 0], points[:, 1], 'r-', linewidth=0.8)
+        if contours:
+            for contour in contours:
+                if len(contour) > 1:
+                    points = np.array([(x, y) for y, x in contour])
+                    self.ax.plot(points[:, 0], points[:, 1], 'r-', linewidth=0.8)
+            self.ax.set_title(f"Contours ({len(contours)})")
+        else:
+            self.ax.set_title("No Contours Found")
         
-        self.ax.set_title(f"Contours ({len(contours)})")
         self.ax.axis('off')
         self.canvas.draw()
     
@@ -376,7 +515,6 @@ class TopoVectorizerGUI(QMainWindow):
                 values = [e['value'] for e in self.elevations[:10]]
                 self.log_message(f"Elevations found: {values}")
                 
-                # Assign to contours
                 contours_to_use = self.simplified_contours if self.simplified_contours else self.contours
                 if contours_to_use:
                     assignments = self.ocr_detector.map_elevations_to_contours(
@@ -401,28 +539,56 @@ class TopoVectorizerGUI(QMainWindow):
             self.log_message("Georeferencing...")
             
             if self.georeferencer.transform is None:
-                self.log_message("Warning: No georeferencing information found")
-                self.georeferenced = contours_to_use
+                self.log_message("⚠️ No georeferencing information found")
+                self.log_message("   Using pixel coordinates (without georeferencing)")
+                self.georeferenced = None  # Δεν κάνουμε georeferencing
+                self.log_message("   You can still export DXF with pixel coordinates")
+                return
             else:
-                self.georeferenced = self.georeferencer.transform_contours(contours_to_use)
-                self.log_message(f"Georeferenced {len(self.georeferenced)} contours")
+                # Georeferencing με αναστροφή Y
+                image_height = self.image.shape[0] if self.image is not None else None
+                self.georeferenced = self.georeferencer.transform_contours(
+                    contours_to_use, 
+                    flip_y=True, 
+                    image_height=image_height
+                )
+                self.log_message(f"✅ Georeferenced {len(self.georeferenced)} contours to EGSA87")
                 
                 if self.georeferenced and self.georeferenced[0]:
                     first = self.georeferenced[0][0]
-                    self.log_message(f"First point: X={first[0]:.2f}, Y={first[1]:.2f}")
-            
+                    self.log_message(f"   First point: X={first[0]:.2f}, Y={first[1]:.2f}")
+                
         except Exception as e:
             self.log_message(f"Error in georeferencing: {str(e)}")
+            self.log_message("   Using pixel coordinates as fallback")
+            self.georeferenced = None
     
     def export_dxf(self):
-        """Export to DXF"""
-        contours_to_export = self.georeferenced if self.georeferenced else (
-            self.simplified_contours if self.simplified_contours else self.contours
-        )
-        
+        """Export to DXF with proper coordinate handling"""
+        # Επιλογή των σωστών contours
+        if self.georeferenced is not None and len(self.georeferenced) > 0:
+            contours_to_export = self.georeferenced
+            has_georeferencing = True
+            self.log_message("Exporting georeferenced contours (EGSA87)")
+        else:
+            contours_to_export = self.simplified_contours if self.simplified_contours else self.contours
+            has_georeferencing = False
+            self.log_message("Exporting pixel coordinates (no georeferencing)")
+    
         if contours_to_export is None or len(contours_to_export) == 0:
             self.log_message("Error: No contours to export")
             return
+    
+        # Ερώτηση για το αν θέλουμε να χρησιμοποιήσουμε 3D
+        use_3d = False
+        if self.elevations and len(self.elevations) > 0:
+            reply = QMessageBox.question(
+                self, '3D Export',
+                'Elevation data found. Export as 3D DXF?',
+                QMessageBox.Yes | QMessageBox.No,
+                QMessageBox.Yes
+            )
+            use_3d = (reply == QMessageBox.Yes)
         
         filepath, _ = QFileDialog.getSaveFileName(
             self, "Export DXF", "", "DXF Files (*.dxf)"
@@ -434,17 +600,59 @@ class TopoVectorizerGUI(QMainWindow):
         try:
             self.log_message(f"Exporting to {filepath}...")
             
+            # Προετοιμασία παραμέτρων
+            image_height = self.image.shape[0] if self.image is not None else None
+            
+            self.dxf_exporter.image_height = image_height
+            self.dxf_exporter.use_3d = use_3d
+            
+            # Elevations
             elevations = [0] * len(contours_to_export)
-            if self.elevations:
-                elevations = self.ocr_detector.map_elevations_to_contours(
-                    contours_to_export, self.elevations
-                )
+            if self.elevations and use_3d:
+                # Προσπάθεια αντιστοίχισης elevations
+                try:
+                    elevations = self.ocr_detector.map_elevations_to_contours(
+                        contours_to_export, self.elevations
+                    )
+                    self.log_message(f"Using {sum(1 for e in elevations if e != 0)} elevations")
+                except:
+                    self.log_message("Warning: Could not map elevations, using 0")
             
-            self.dxf_exporter.export_contours(contours_to_export, elevations, filepath)
-            self.log_message(f"Export complete: {filepath}")
+            # Εξαγωγή
+            exported = self.dxf_exporter.export_contours(
+                contours_to_export,
+                elevations,
+                filepath,
+                image_height=image_height,
+                has_georeferencing=has_georeferencing
+            )
             
+            self.log_message(f"✅ Export complete: {filepath}")
+            self.log_message(f"✅ Exported {exported} contours")
+        
+            if has_georeferencing:
+                self.log_message("✅ Coordinates: EGSA87 (georeferenced)")
+            else:
+                self.log_message("✅ Coordinates: Pixel coordinates (Y-axis corrected)")
+                
         except Exception as e:
             self.log_message(f"Error exporting: {str(e)}")
+            import traceback
+            self.log_message(traceback.format_exc())
+    
+    def closeEvent(self, event):
+        """Handle window close event"""
+        reply = QMessageBox.question(
+            self, 'Exit',
+            'Are you sure you want to exit?',
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            event.accept()
+        else:
+            event.ignore()
 
 def main():
     app = QApplication(sys.argv)

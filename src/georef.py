@@ -75,21 +75,27 @@ class Georeferencer:
                self.transform[1] * (y - self.transform[3])) / det
         return (int(row), int(col))
     
-    def transform_contours(self, contours):
-        """Transform all contours to geographic coordinates"""
+    def transform_contours(self, contours, flip_y=True, image_height=None):
+        """Transform all contours to geographic coordinates with optional Y flip"""
         if self.transform is None:
+            print("Warning: No transform available, returning original contours")
             return contours
             
         transformed = []
         for contour in contours:
             geo_contour = []
             for y, x in contour:
+                # Αν χρειάζεται, αντιστρέφουμε τον Y άξονα
+                if flip_y and image_height is not None:
+                    y = image_height - y
+                
                 coord = self.pixel_to_coord(y, x)
                 if coord:
                     geo_contour.append(coord)
             if len(geo_contour) > 1:
                 transformed.append(geo_contour)
-        
+         
+        print(f"Transformed {len(transformed)} contours to geographic coordinates")
         return transformed
     
     def export_world_file(self, filepath):
